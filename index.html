@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>휘매쓰 연산 챌린지!</title>
+    <!-- MathJax 라이브러리 -->
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async
+        src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
+    </script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+        }
+        #game-container {
+            display: none;
+            padding: 20px;
+        }
+        #question {
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        .option {
+            display: block;
+            margin: 10px auto;
+            padding: 10px 20px;
+            width: 200px;
+            font-size: 18px;
+            cursor: pointer;
+        }
+        #energy-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #ddd;
+            margin-bottom: 20px;
+            position: relative;
+        }
+        #energy {
+            height: 100%;
+            background-color: #76c7c0;
+            width: 100%;
+            transition: width 0.1s linear;
+        }
+        #stats {
+            margin-bottom: 20px;
+        }
+        #start-screen {
+            padding: 50px;
+        }
+        .difficulty-button {
+            display: block;
+            margin: 10px auto;
+            padding: 15px 30px;
+            width: 200px;
+            font-size: 20px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="start-screen">
+        <h1>휘매쓰 연산 챌린지!</h1>
+        <p>난이도를 선택하세요:</p>
+        <button class="difficulty-button" onclick="startGame('hard')">상 (20초 시작)</button>
+        <button class="difficulty-button" onclick="startGame('medium')">중 (30초 시작)</button>
+        <button class="difficulty-button" onclick="startGame('easy')">하 (40초 시작)</button>
+    </div>
+
+    <div id="game-container">
+        <div id="energy-bar">
+            <div id="energy"></div>
+        </div>
+        <div id="stats">
+            <p id="score-display">점수: 0</p>
+            <p id="lives-display">남은 기회: 3</p>
+            <p id="time-display">전체 게임 시간: 0초</p>
+        </div>
+        <div id="question"></div>
+        <div id="options">
+            <button class="option" onclick="checkAnswer(0)"></button>
+            <button class="option" onclick="checkAnswer(1)"></button>
+            <button class="option" onclick="checkAnswer(2)"></button>
+            <button class="option" onclick="checkAnswer(3)"></button>
+        </div>
+    </div>
+
+    <script>
+        // 게임 상태 변수들
+        var score = 0;
+        var lives = 3;
+        var totalGameTime = 0;
+        var difficulty;
+        var timePerQuestion;
+        var timeDecreaseRate = 0.99; // 1%씩 빨라짐
+        var energyInterval;
+        var gameInterval;
+        var currentAnswer;
+        var options = [];
+        var pointsPerQuestion;
+        var energyWidth;
+        var energyDecreaseAmount;
+
+        // 난이도 설정
+        function startGame(selectedDifficulty) {
+            difficulty = selectedDifficulty;
+            document.getElementById('start-screen').style.display = 'none';
+            document.getElementById('game-container').style.display = 'block';
+
+            if (difficulty === 'hard') {
+                timePerQuestion = 20;
+                pointsPerQuestion = 20;
+            } else if (difficulty === 'medium') {
+                timePerQuestion = 30;
+                pointsPerQuestion = 15;
+            } else {
+                timePerQuestion = 40;
+                pointsPerQuestion = 5;
+            }
+
+            energyWidth = 100;
+            energyDecreaseAmount = 100 / (timePerQuestion * 10); // 0.1초마다 감소
+
+            startEnergyBar();
+            startGameTimer();
+            generateQuestion();
+        }
+
+        // 에너지바 관리
+        function startEnergyBar() {
+            clearInterval(energyInterval);
+            energyInterval = setInterval(function() {
+                energyWidth -= energyDecreaseAmount;
+                if (energyWidth <= 0) {
+                    energyWidth = 0;
+                    loseLife();
+                }
+                document.getElementById('energy').style.width = energyWidth + '%';
+            }, 100);
+        }
+
+        // 전체 게임 시간 관리
+        function startGameTimer() {
+            clearInterval(gameInterval);
+            gameInterval = setInterval(function() {
+                totalGameTime += 1;
+                document.getElementById('time-display').innerText = '전체 게임 시간: ' + totalGameTime + '초';
+            }, 1000);
+        }
+
+        // 문제 생성
+        function generateQuestion() {
+            // 시간 1% 감소
+            timePerQuestion *= timeDecreaseRate;
+            energyDecreaseAmount = 100 / (timePerQuestion * 10);
+            energyWidth = 100;
+            document.getElementById('energy').style.width = energyWidth + '%';
+
+            // 분모 생성 (2부터 9까지)
+            var denominator = Math.floor(Math.random() * 8) + 2;
+
+            // 첫 번째 대분수 생성
+            var whole1 = Math.floor(Math.random() * 9) + 1; // 1부터 9까지
+            var numerator1 = Math.floor(Math.random() * (denominator - 1)) + 1;
+
+            // 두 번째 대분수 생성
+            var whole2 = Math.floor(Math.random() * 9) + 1;
+            var numerator2 = Math.floor(Math.random() * (denominator - 1)) + 1;
+
+            // 정답 계산
+            var totalNumerator = (whole1 + whole2) * denominator + numerator1 + numerator2;
+            var answerWhole = Math.floor(totalNumerator / denominator);
+            var answerNumerator = totalNumerator % denominator;
+
+            // 약분 처리
+            var gcd = function(a, b) {
+                return b ? gcd(b, a % b) : a;
+            };
+            var commonDivisor = gcd(answerNumerator, denominator);
+            answerNumerator /= commonDivisor;
+            var simplifiedDenominator = denominator / commonDivisor;
+
+            // 정답 문자열 생성
+            var answerStr = '';
+            if (answerNumerator === 0) {
+                answerStr = answerWhole.toString();
+            } else if (answerWhole === 0) {
+                answerStr = '\\(\\dfrac{' + answerNumerator + '}{' + simplifiedDenominator + '}\\)';
+            } else {
+                answerStr = '\\(' + answerWhole + '\\dfrac{' + answerNumerator + '}{' + simplifiedDenominator + '}\\)';
+            }
+
+            currentAnswer = answerStr;
+
+            // 오답 생성
+            options = [currentAnswer];
+            while (options.length < 4) {
+                var wrongWhole = answerWhole + Math.floor(Math.random() * 5) - 2;
+                var wrongNumerator = answerNumerator + Math.floor(Math.random() * 5) - 2;
+                var wrongDenominator = simplifiedDenominator;
+
+                if (wrongNumerator <= 0) wrongNumerator = 1;
+                if (wrongNumerator >= wrongDenominator) wrongNumerator = wrongDenominator - 1;
+                if (wrongWhole < 0) wrongWhole = 0;
+
+                var wrongAnswerStr = '';
+                if (wrongNumerator === 0) {
+                    wrongAnswerStr = wrongWhole.toString();
+                } else if (wrongWhole === 0) {
+                    wrongAnswerStr = '\\(\\dfrac{' + wrongNumerator + '}{' + wrongDenominator + '}\\)';
+                } else {
+                    wrongAnswerStr = '\\(' + wrongWhole + '\\dfrac{' + wrongNumerator + '}{' + wrongDenominator + '}\\)';
+                }
+
+                if (!options.includes(wrongAnswerStr)) {
+                    options.push(wrongAnswerStr);
+                }
+            }
+
+            // 옵션 섞기
+            options.sort(function() { return 0.5 - Math.random(); });
+
+            // 문제 표시
+            var questionStr = '\\(' + whole1 + '\\dfrac{' + numerator1 + '}{' + denominator + '} + ' + whole2 + '\\dfrac{' + numerator2 + '}{' + denominator + '} = ?\\)';
+            document.getElementById('question').innerHTML = questionStr;
+            MathJax.typeset();
+
+            // 옵션 표시
+            var optionButtons = document.getElementsByClassName('option');
+            for (var i = 0; i < optionButtons.length; i++) {
+                optionButtons[i].innerHTML = options[i];
+            }
+            MathJax.typeset();
+        }
+
+        // 정답 확인
+        function checkAnswer(index) {
+            if (options[index] === currentAnswer) {
+                score += pointsPerQuestion;
+                document.getElementById('score-display').innerText = '점수: ' + score;
+                generateQuestion();
+            } else {
+                loseLife();
+            }
+        }
+
+        // 목숨 감소
+        function loseLife() {
+            lives -= 1;
+            if (lives <= 0) {
+                alert('게임 종료! 최종 점수: ' + score);
+                location.reload();
+            } else {
+                document.getElementById('lives-display').innerText = '남은 기회: ' + lives;
+                generateQuestion();
+            }
+        }
+    </script>
+</body>
+</html>
